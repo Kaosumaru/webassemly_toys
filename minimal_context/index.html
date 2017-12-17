@@ -4,7 +4,6 @@
 <body>
     <canvas id="displayCanvas" width="800" height="600" style="border:1px solid #000000;">
     </canvas>
-    <input type="button" id="run" value="(waiting for WebAssembly)"/>
 </body>
 <script>
   // Check for wasm support.
@@ -40,7 +39,9 @@
       });
   }
 
-  var memoryu32 = null;
+  let memoryu32 = null;
+  let exports = null;
+
   function jsLog(index, length) {
       var bytes = Array.prototype.slice.call(memoryu32, index, index + length);
       var msg = bytes.map(function(byte) {
@@ -54,10 +55,11 @@
 
   const imports = {
       env: {
+        abort: function(x){},
         _jsLog: jsLog,
         _jsSetInterval: function (f, n) {
           setInterval(function () {
-            wasmInstance.exports.runCallback(f);
+            exports._runCallback(f);
           }, n);
         },
         _jsFillRect: function (x, y, w, h) {
@@ -65,23 +67,45 @@
         },
         _jsClearRect: function (x, y, w, h) {
           ctx.clearRect(x, y, w, h);
-        }
+        },
+        table: new WebAssembly.Table({ initial: 2, element: 'anyfunc' })
       }
   };
+
+  function buildWrappers(){
+      if (exports._onFrame) {
+          let oldTimestamp = 0;
+          function step(timestamp) {
+            let dt = (timestamp - oldTimestamp) / 1000.0;
+            exports._onFrame(dt);
+            oldTimestamp = timestamp;
+            window.requestAnimationFrame(step);
+          }
+
+          window.requestAnimationFrame(step);
+      }
+
+
+        if (exports._onKey) {
+            document.addEventListener('keydown', (event) => {
+              exports._onKey(event.keyCode, true);
+            });
+            document.addEventListener('keyup', (event) => {
+              exports._onKey(event.keyCode, false);
+            });
+        }
+  }
 
   // Main part of this example, loads the module and uses it.
   loadWebAssembly('main.wasm', imports)
     .then((data) => {
       memoryu32 = new Uint8Array(data.memory.buffer);
-      var exports = data.instance.exports; // the exports of that instance
+      exports = data.instance.exports; // the exports of that instance
       var doubler = exports._doubler; // the "doubler" function (note "_" prefix)
-      // now we are ready, set up the button so the user can run the code
-      var button = document.getElementById('run');
-      button.value = 'Call a method in the WebAssembly module';
-      button.addEventListener('click', function() {
-        var input = 21;
-        doubler(input);
-      }, false);
+
+      exports._main();
+
+      buildWrappers();
     }
   );
 </script>
