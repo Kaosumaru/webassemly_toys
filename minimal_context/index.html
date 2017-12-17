@@ -31,8 +31,6 @@
                 resolve({instance:instance, memory:imports.env.memory});
             });
           });
-
-          //return new WebAssembly.Instance(module, imports);
         });
     }
 
@@ -61,8 +59,9 @@
           }
         }
     };
+
     // Main part of this example, loads the module and uses it.
-    loadWebAssembly('hello_world.wasm', imports)
+    loadWebAssembly('main.wasm', imports)
       .then((data) => {
         memoryu32 = new Uint8Array(data.memory.buffer);
         var exports = data.instance.exports; // the exports of that instance
